@@ -3,6 +3,7 @@ from torch.nn import Module
 
 from .feature_maps import fm
 
+
 class LinearAttention(Module):
     def __init__(self, feature_map: str = None, eps: float = 1e-10):
         super(LinearAttention, self).__init__()
@@ -12,7 +13,7 @@ class LinearAttention(Module):
     def _linear(self, Q, K, V):
         # [batch_size, n_heads, p_s, p_s]
         KV = torch.einsum("nshd,nshm->nhmd", K, V)
-        
+
         # Z equals to denominator value after applying attention
         # [batch_size, target_seq_len, n_heads]
         Z = 1 / torch.einsum("nlhd,nhd->nlh", Q, K.sum(dim=1)) + self.eps
@@ -35,13 +36,13 @@ class LinearAttention(Module):
 
         # [batch_size, k_seq_len, n_heads, p_s]
         K = self.feature_map(keys)
-            
-        if output_attention:    
+
+        if output_attention:
             V, A = self._quadratic(Q, K, values)
         else:
-            V, A = self._linear(Q, K, values) 
+            V, A = self._linear(Q, K, values)
 
-        return V, A 
+        return V, A
 
 
 class CausalLinearAttention(Module):
@@ -56,7 +57,7 @@ class CausalLinearAttention(Module):
 
         # [batch_size, n_heads, p_s]
         Z = 1 / (torch.einsum("nlhi,nlhi->nlh", Q, K.cumsum(1)) + self.eps)
-        
+
         # [batch_size, seq_len, n_heads, p_s]
         V = torch.einsum("nlhd,nlhmd,nlh->nlhm", Q, KV.cumsum(1), Z)
 
@@ -78,10 +79,10 @@ class CausalLinearAttention(Module):
 
         # [batch_size, k_seq_len, n_heads, p_s]
         K = self.feature_map(keys)
-            
-        if output_attention:    
+
+        if output_attention:
             V, A = self._quadratic(Q, K, values)
         else:
-            V, A = self._linear(Q, K, values) 
+            V, A = self._linear(Q, K, values)
 
         return V, A

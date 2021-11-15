@@ -1,5 +1,6 @@
 import torch
 
+
 def fm(feature_map: str = None):
     if (feature_map is None) or (feature_map == "elu"):
         return elu_feature_map
