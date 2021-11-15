@@ -15,8 +15,8 @@ def test_lin_attn():
     v = torch.rand(batch_size, seq_len, num_heads, embed_dim)
     k = torch.rand(batch_size, seq_len, num_heads, embed_dim)
 
-    v_1, _ = attn.foward(q, k, v, output_attention=True)
-    v_2, _ = attn.foward(q, k, v, output_attention=False)
+    v_1, _ = attn.forward(q, k, v, output_attention=True)
+    v_2, _ = attn.forward(q, k, v, output_attention=False)
     assert torch.allclose(v_1, v_2, atol=1e-4)
 
 @torch.no_grad()
@@ -32,7 +32,7 @@ def test_causal_lin_attn():
     v = torch.rand(batch_size, seq_len, num_heads, embed_dim)
     k = torch.rand(batch_size, seq_len, num_heads, embed_dim)
 
-    v_1, _ = attn.foward(q, k, v, output_attention=True)
-    v_2, _ = attn.foward(q, k, v, output_attention=False)
+    v_1, _ = attn.forward(q, k, v, output_attention=True)
+    v_2, _ = attn.forward(q, k, v, output_attention=False)
     assert torch.allclose(v_1, v_2, atol=1e-4)
 
