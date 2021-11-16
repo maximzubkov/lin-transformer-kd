@@ -3,3 +3,6 @@ pytest==6.2.5
 transformers==4.12.3
 wandb==0.12.6
 datasets==1.15.1
+omegaconf==2.1.1
+argparse==1.4.0
+accelerate==0.5.1
