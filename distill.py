@@ -3,6 +3,7 @@ import logging
 import math
 import os
 
+import wandb
 import datasets
 import torch
 import transformers
@@ -18,8 +19,7 @@ from transformers import (
 )
 
 from models import make_attention_linear
-from training import get_dataset
-from training.optimizer import get_optimizer
+from training import get_dataset, get_optimizer, evaluate
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,14 @@ def main():
     if accelerator.is_local_main_process:
         datasets.utils.logging.set_verbosity_warning()
         transformers.logging.set_verbosity_info()
+
+        wandb.init(project="distillation")
+
+        logged_parameters = dict(config.training)
+        logged_parameters.update(dict(config.dataset))
+        logged_parameters.update({'model': config.model})
+
+        wandb.config.update(logged_parameters)  # Log args
     else:
         datasets.utils.logging.set_verbosity_error()
         transformers.logging.set_verbosity_error()
@@ -85,11 +93,17 @@ def main():
     for param in teacher_model.parameters():
         param.requires_grad = False
     teacher_model.eval()
+    teacher_model = teacher_model.to(accelerator.device)
 
     # Prepare Student model
     student_model = AutoModelForCausalLM.from_pretrained(config.model, **{"output_attentions": True})
     student_model.resize_token_embeddings(len(tokenizer))
     student_model = make_attention_linear(student_model)
+
+    optimized_parameters = ['wte', 'wpe', 'attn']
+    for name, param in student_model.named_parameters():
+        if all([parameter_name not in name for parameter_name in optimized_parameters]):
+            param.requires_grad = False
 
     train_dataset, eval_dataset, train_dataloader, eval_dataloader = get_dataset(
         config=config, tokenizer=tokenizer, accelerator=accelerator
@@ -141,15 +155,17 @@ def main():
         for step, batch in enumerate(train_dataloader):
             with torch.no_grad():
                 teacher_outputs = teacher_model(**batch)
+
             student_outputs = student_model(**batch)
             loss = student_outputs.loss
             kd_losses = torch.cat([
                 torch.nn.functional.mse_loss(a, b).reshape(1)
                 for a, b in zip(student_outputs.attentions, teacher_outputs.attentions)
             ])
-            loss = loss + kd_losses.mean()
+            loss = loss + config.training.kd_loss_coef * kd_losses.mean()
             loss = loss / config.training.gradient_accumulation_steps
             accelerator.backward(loss)
+
             if step % config.training.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
                 optimizer.step()
                 lr_scheduler.step()
@@ -157,23 +173,26 @@ def main():
                 progress_bar.update(1)
                 completed_steps += 1
 
-        student_model.eval()
-        losses = []
-        for step, batch in enumerate(eval_dataloader):
-            with torch.no_grad():
-                outputs = student_model(**batch)
+            if accelerator.is_local_main_process:
+                wandb.log(
+                    {
+                        'student_lm_loss': student_outputs.loss.item(),
+                        'teacher_lmloss': teacher_outputs.loss.item(),
+                        'kd_loss': kd_losses.mean().item(),
+                        'totol_train_loss': loss.item()
+                    }
+                )
 
-            loss = outputs.loss
-            losses.append(accelerator.gather(loss.repeat(config.training.per_device_eval_batch_size)))
-
-        losses = torch.cat(losses)
-        losses = losses[: len(eval_dataset)]
-        try:
-            perplexity = math.exp(torch.mean(losses))
-        except OverflowError:
-            perplexity = float("inf")
-
-        logger.info(f"epoch {epoch}: perplexity: {perplexity}")
+            if step % config.training.num_steps_before_eval == 0:
+                evaluate(
+                    step=step,
+                    student_model=student_model,
+                    teacher_model=teacher_model,
+                    eval_dataset=eval_dataset,
+                    eval_dataloader=eval_dataloader,
+                    accelerator=accelerator,
+                    per_device_eval_batch_size=config.training.per_device_eval_batch_size
+                )
 
         if config.push_to_hub and epoch < config.training.num_train_epochs - 1:
             accelerator.wait_for_everyone()
