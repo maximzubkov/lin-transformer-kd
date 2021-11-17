@@ -66,7 +66,7 @@ class CausalLinearAttention(Module):
     def _quadratic(self, Q, K, V):
         # [batch_size, n_heads, input_seq_len, target_seq_len]
         QK = torch.einsum("nlhe,nshe->nhls", Q, K)
-        QK = QK * torch.tril(torch.ones(QK.shape[2:]))
+        QK = QK * torch.tril(torch.ones(QK.shape[2:])).to(QK.device)
 
         A = QK / (torch.sum(QK, dim=-1, keepdim=True) + self.eps)
         V = torch.einsum("nhls,nshd->nlhd", A, V)

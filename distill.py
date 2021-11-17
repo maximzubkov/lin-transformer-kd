@@ -3,6 +3,7 @@ import logging
 import math
 import os
 
+import wandb
 import datasets
 import torch
 import transformers
@@ -54,6 +55,9 @@ def main():
     if accelerator.is_local_main_process:
         datasets.utils.logging.set_verbosity_warning()
         transformers.logging.set_verbosity_info()
+
+        wandb.init(project="distillation")
+        wandb.config.update(config)  # Log args
     else:
         datasets.utils.logging.set_verbosity_error()
         transformers.logging.set_verbosity_error()
@@ -85,6 +89,7 @@ def main():
     for param in teacher_model.parameters():
         param.requires_grad = False
     teacher_model.eval()
+    teacher_model = teacher_model.to(accelerator.device)
 
     # Prepare Student model
     student_model = AutoModelForCausalLM.from_pretrained(config.model, **{"output_attentions": True})
@@ -141,6 +146,7 @@ def main():
         for step, batch in enumerate(train_dataloader):
             with torch.no_grad():
                 teacher_outputs = teacher_model(**batch)
+
             student_outputs = student_model(**batch)
             loss = student_outputs.loss
             kd_losses = torch.cat([
@@ -150,12 +156,22 @@ def main():
             loss = loss + kd_losses.mean()
             loss = loss / config.training.gradient_accumulation_steps
             accelerator.backward(loss)
+
             if step % config.training.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
                 progress_bar.update(1)
                 completed_steps += 1
+
+            if accelerator.is_local_main_process:
+                wandb.log(
+                    {
+                        'LM_train_loss': student_outputs.loss.item(),
+                        'KD_loss': kd_losses.mean().item(),
+                        'totol_train_loss': loss.item()
+                    }
+                )
 
         student_model.eval()
         losses = []
@@ -174,6 +190,8 @@ def main():
             perplexity = float("inf")
 
         logger.info(f"epoch {epoch}: perplexity: {perplexity}")
+        if accelerator.is_local_main_process:
+            wandb.log({'val_perplexity': perplexity})
 
         if config.push_to_hub and epoch < config.training.num_train_epochs - 1:
             accelerator.wait_for_everyone()
