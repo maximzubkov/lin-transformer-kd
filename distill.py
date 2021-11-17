@@ -2,27 +2,24 @@ import argparse
 import logging
 import math
 import os
-import random
 
 import datasets
 import torch
 import transformers
 from accelerate import Accelerator, DistributedType
-from datasets import load_dataset
 from omegaconf import OmegaConf
-from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers import (
     MODEL_MAPPING,
-    AdamW,
     AutoModelForCausalLM,
     AutoTokenizer,
-    default_data_collator,
     get_scheduler,
     set_seed,
 )
 
 from models import make_attention_linear
+from training import get_dataset
+from training.optimizer import get_optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -69,19 +66,6 @@ def main():
         os.makedirs(config.cache_dir, exist_ok=True)
     accelerator.wait_for_everyone()
 
-    raw_datasets = load_dataset(config.dataset.name, config.dataset.config_name)
-    if "validation" not in raw_datasets.keys():
-        raw_datasets["validation"] = load_dataset(
-            config.dataset.name,
-            config.dataset.config_name,
-            split=f"train[:{config.dataset.validation_split_percentage}%]",
-        )
-        raw_datasets["train"] = load_dataset(
-            config.dataset.name,
-            config.dataset.config_name,
-            split=f"train[{config.dataset.validation_split_percentage}%:]",
-        )
-
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
@@ -107,82 +91,10 @@ def main():
     student_model.resize_token_embeddings(len(tokenizer))
     student_model = make_attention_linear(student_model)
 
-    column_names = raw_datasets["train"].column_names
-    text_column_name = "text" if "text" in column_names else column_names[0]
-
-    def tokenize_function(examples):
-        return tokenizer(examples[text_column_name])
-
-    with accelerator.main_process_first():
-        tokenized_datasets = raw_datasets.map(
-            tokenize_function,
-            batched=True,
-            num_proc=config.num_workers,
-            remove_columns=column_names,
-            desc="Running tokenizer on dataset",
-        )
-
-    block_size = tokenizer.model_max_length
-
-    # Main data processing function that will concatenate all texts from our dataset and generate chunks of block_size.
-    def group_texts(examples):
-        # Concatenate all texts.
-        concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
-        total_length = len(concatenated_examples[list(examples.keys())[0]])
-        # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
-        # customize this part to your needs.
-        if total_length >= block_size:
-            total_length = (total_length // block_size) * block_size
-        # Split by chunks of max_len.
-        result = {
-            k: [t[i: i + block_size] for i in range(0, total_length, block_size)]
-            for k, t in concatenated_examples.items()
-        }
-        result["labels"] = result["input_ids"].copy()
-        return result
-
-    with accelerator.main_process_first():
-        lm_datasets = tokenized_datasets.map(
-            group_texts,
-            batched=True,
-            num_proc=config.num_workers,
-            desc=f"Grouping texts in chunks of {block_size}",
-        )
-
-    train_dataset = lm_datasets["train"]
-    eval_dataset = lm_datasets["validation"]
-
-    # Log a few random samples from the training set:
-    for index in random.sample(range(len(train_dataset)), 3):
-        logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
-
-    # DataLoaders creation:
-    train_dataloader = DataLoader(
-        train_dataset,
-        shuffle=True,
-        collate_fn=default_data_collator,
-        batch_size=config.training.per_device_train_batch_size
+    train_dataset, eval_dataset, train_dataloader, eval_dataloader = get_dataset(
+        config=config, tokenizer=tokenizer, accelerator=accelerator
     )
-    eval_dataloader = DataLoader(
-        eval_dataset,
-        collate_fn=default_data_collator,
-        batch_size=config.training.per_device_eval_batch_size
-    )
-
-    # Optimizer
-    # Split weights in two groups, one with weight decay and the other not.
-    no_decay = ["bias", "LayerNorm.weight"]
-    optimizer_grouped_parameters = [
-        {
-            "params": [p for n, p in student_model.named_parameters() if not any(nd in n for nd in no_decay)],
-            "weight_decay": config.training.weight_decay,
-        },
-        {
-            "params": [p for n, p in student_model.named_parameters() if any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
-        },
-    ]
-    optimizer = AdamW(optimizer_grouped_parameters, lr=config.training.learning_rate)
+    optimizer = get_optimizer(config, model=student_model)
 
     # Prepare everything with our `accelerator`.
     student_model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
