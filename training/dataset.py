@@ -1,5 +1,4 @@
 import logging
-import random
 
 from accelerate import Accelerator
 from datasets import load_dataset

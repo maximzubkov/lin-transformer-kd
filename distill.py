@@ -19,8 +19,7 @@ from transformers import (
 )
 
 from models import make_attention_linear
-from training import get_dataset
-from training.optimizer import get_optimizer
+from training import get_dataset, get_optimizer, evaluate
 
 logger = logging.getLogger(__name__)
 
@@ -176,8 +175,10 @@ def main():
 
             if step % config.training.num_steps_before_eval == 0:
                 evaluate(
+                    step=step,
                     student_model=student_model,
                     teacher_model=teacher_model,
+                    eval_dataset=eval_dataset,
                     eval_dataloader=eval_dataloader,
                     accelerator=accelerator,
                     per_device_eval_batch_size=config.training.per_device_eval_batch_size

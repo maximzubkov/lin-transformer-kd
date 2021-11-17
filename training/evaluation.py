@@ -1,13 +1,23 @@
-import torch
 import math
-import wandb
+import logging
 
-def evaluate_lm(
-    student_model: ,
-    teacher_model:, 
-    eval_dataloader:, 
-    accelerator: ,
-    per_device_eval_batch_size
+import torch
+import wandb
+from accelerate import Accelerator
+from torch.utils.data import DataLoader, Dataset
+from transformers import PreTrainedModel
+
+logger = logging.getLogger(__name__)
+
+
+def evaluate(
+    step: int,
+    student_model: PreTrainedModel,
+    teacher_model: PreTrainedModel,
+    eval_dataset: Dataset,
+    eval_dataloader: DataLoader,
+    accelerator: Accelerator,
+    per_device_eval_batch_size: int
 ):
     student_model.eval()
     student_losses, teacher_losses = [], []
@@ -36,7 +46,7 @@ def evaluate_lm(
         teacher_perplexity = float("inf")
 
     logger.info(
-        f"epoch {epoch}: student perplexity: {student_perplexity}, teacher perplexity: {teacher_perplexity}"
+        f"epoch {step}: student perplexity: {student_perplexity}, teacher perplexity: {teacher_perplexity}"
     )
     if accelerator.is_local_main_process:
         wandb.log({
