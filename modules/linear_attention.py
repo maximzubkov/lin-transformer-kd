@@ -52,16 +52,19 @@ class CausalLinearAttention(Module):
         self.eps = eps
 
     def _linear(self, Q, K, V):
-        # [batch_size, seq_len, n_heads, p_s, p_s]
-        KV = torch.einsum("nshd,nshm->nshmd", K, V)
-
         # [batch_size, n_heads, p_s]
         Z = 1 / (torch.einsum("nlhi,nlhi->nlh", Q, K.cumsum(1)) + self.eps)
 
-        # [batch_size, seq_len, n_heads, p_s]
-        V = torch.einsum("nlhd,nlhmd,nlh->nlhm", Q, KV.cumsum(1), Z)
-
-        return V.contiguous(), None
+        batch_size, seq_len, num_heads, hidden = Q.shape
+        V_ = torch.zeros((batch_size, seq_len, num_heads, hidden))
+        S_ = torch.zeros((batch_size, num_heads, hidden, hidden))
+        for i in range(seq_len):
+            # [batch_size, n_heads, p_s, p_s]
+            S_ = S_ + torch.einsum("nhd,nhm->nhmd", K[:, i, :, :], V[:, i, :, :])
+            # [batch_size, 1, n_heads, p_s]
+            V_[:, i, :, :] = torch.einsum("nhd,nhmd->nhm", Q[:, i, :, :], S_)
+        V_ = torch.einsum("nlhm,nlh->nlhm", V_, Z)
+        return V_.contiguous(), None
 
     def _quadratic(self, Q, K, V):
         # [batch_size, n_heads, input_seq_len, target_seq_len]
