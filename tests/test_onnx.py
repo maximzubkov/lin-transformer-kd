@@ -92,6 +92,7 @@ def _convert_to_onnx_linear(attn: Union[LinearAttention, CausalLinearAttention],
     )
     assert np.all(np.isclose(v_onnx, v_orig.cpu().numpy(), atol=1e-3))
 
+
 @torch.no_grad()
 def test_lin_attn():
     attn = LinearAttention()
