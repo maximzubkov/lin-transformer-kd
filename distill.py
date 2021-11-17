@@ -167,31 +167,48 @@ def main():
             if accelerator.is_local_main_process:
                 wandb.log(
                     {
-                        'LM_train_loss': student_outputs.loss.item(),
-                        'KD_loss': kd_losses.mean().item(),
+                        'student_lm_loss': student_outputs.loss.item(),
+                        'teacher_lmloss': teacher_outputs.loss.item(),
+                        'kd_loss': kd_losses.mean().item(),
                         'totol_train_loss': loss.item()
                     }
                 )
 
         student_model.eval()
-        losses = []
+        per_device_eval_batch_size = config.training.per_device_eval_batch_size
+        student_losses, teacher_losses = [], []
         for step, batch in enumerate(eval_dataloader):
             with torch.no_grad():
-                outputs = student_model(**batch)
+                student_outputs = student_model(**batch)
+                teacher_outputs = teacher_model(**batch)
 
-            loss = outputs.loss
-            losses.append(accelerator.gather(loss.repeat(config.training.per_device_eval_batch_size)))
+            student_loss = student_outputs.loss
+            teacher_loss = teacher_outputs.loss
 
-        losses = torch.cat(losses)
-        losses = losses[: len(eval_dataset)]
+            student_losses.append(accelerator.gather(student_loss.repeat(per_device_eval_batch_size)))
+            teacher_losses.append(accelerator.gather(teacher_loss.repeat(per_device_eval_batch_size)))
+
+        student_losses = torch.cat(student_losses)
+        teacher_losses = torch.cat(teacher_losses)
+        student_losses = student_losses[: len(eval_dataset)]
+        teacher_losses = teacher_losses[: len(eval_dataset)]
         try:
-            perplexity = math.exp(torch.mean(losses))
+            student_perplexity = math.exp(torch.mean(student_losses))
         except OverflowError:
-            perplexity = float("inf")
+            student_perplexity = float("inf")
+        try:
+            teacher_perplexity = math.exp(torch.mean(teacher_losses))
+        except OverflowError:
+            teacher_perplexity = float("inf")
 
-        logger.info(f"epoch {epoch}: perplexity: {perplexity}")
+        logger.info(
+            f"epoch {epoch}: student perplexity: {student_perplexity}, teacher perplexity: {teacher_perplexity}"
+        )
         if accelerator.is_local_main_process:
-            wandb.log({'val_perplexity': perplexity})
+            wandb.log({
+                'val_student_perplexity': student_perplexity,
+                'val_teacher_perplexity': teacher_perplexity
+            })
 
         if config.push_to_hub and epoch < config.training.num_train_epochs - 1:
             accelerator.wait_for_everyone()
