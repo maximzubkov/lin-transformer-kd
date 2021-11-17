@@ -56,7 +56,12 @@ def main():
         transformers.logging.set_verbosity_info()
 
         wandb.init(project="distillation")
-        wandb.config.update(config)  # Log args
+
+        logged_parameters = dict(config.training)
+        logged_parameters.update(dict(config.dataset))
+        logged_parameters.update({'model': config.model})
+
+        wandb.config.update(logged_parameters)  # Log args
     else:
         datasets.utils.logging.set_verbosity_error()
         transformers.logging.set_verbosity_error()
@@ -94,6 +99,11 @@ def main():
     student_model = AutoModelForCausalLM.from_pretrained(config.model, **{"output_attentions": True})
     student_model.resize_token_embeddings(len(tokenizer))
     student_model = make_attention_linear(student_model)
+
+    optimized_parameters = ['wte', 'wpe', 'attn']
+    for name, param in student_model.named_parameters():
+        if all([parameter_name not in name for parameter_name in optimized_parameters]):
+            param.requires_grad = False
 
     train_dataset, eval_dataset, train_dataloader, eval_dataloader = get_dataset(
         config=config, tokenizer=tokenizer, accelerator=accelerator
@@ -152,7 +162,7 @@ def main():
                 torch.nn.functional.mse_loss(a, b).reshape(1)
                 for a, b in zip(student_outputs.attentions, teacher_outputs.attentions)
             ])
-            loss = loss + kd_losses.mean()
+            loss = loss + config.training.kd_loss_coeff * kd_losses.mean()
             loss = loss / config.training.gradient_accumulation_steps
             accelerator.backward(loss)
 
