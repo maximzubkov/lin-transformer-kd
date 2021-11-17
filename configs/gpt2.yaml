@@ -10,19 +10,18 @@ push_to_hub: false
 dataset:
   name: wikitext
   config_name: wikitext-103-v1
-  max_train_samples: 100
-  max_eval_samples: 100
-  validation_split_percentage: 5
+  validation_split_percentage: 3
 
   tokenizer: gpt2
   use_fast_tokenizer: true
 
 training:
-  per_device_train_batch_size: 1
-  per_device_eval_batch_size: 1
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 8
   learning_rate: 5e-5
   weight_decay: 0.0
-  num_train_epochs: 1
-  gradient_accumulation_steps: 1
+  num_train_epochs: 5
+  gradient_accumulation_steps: 8
   lr_scheduler_type: linear
   num_warmup_steps: 0
+  num_steps_before_eval: 2000
