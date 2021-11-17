@@ -162,7 +162,7 @@ def main():
                 torch.nn.functional.mse_loss(a, b).reshape(1)
                 for a, b in zip(student_outputs.attentions, teacher_outputs.attentions)
             ])
-            loss = loss + config.training.kd_loss_coeff * kd_losses.mean()
+            loss = loss + config.training.kd_loss_coef * kd_losses.mean()
             loss = loss / config.training.gradient_accumulation_steps
             accelerator.backward(loss)
 
