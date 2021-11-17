@@ -18,10 +18,12 @@ dataset:
 training:
   per_device_train_batch_size: 8
   per_device_eval_batch_size: 8
+  
   learning_rate: 5e-5
   weight_decay: 0.0
-  num_train_epochs: 5
   gradient_accumulation_steps: 8
   lr_scheduler_type: linear
   num_warmup_steps: 0
+
+  num_train_epochs: 5
   num_steps_before_eval: 2000
