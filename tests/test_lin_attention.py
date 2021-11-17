@@ -1,10 +1,12 @@
+from typing import Union
+
 import torch
 
 from modules.linear_attention import LinearAttention, CausalLinearAttention
 
 
 @torch.no_grad()
-def _run_attention(attn):
+def _run_attention(attn: Union[LinearAttention, CausalLinearAttention]):
     attn.eval()
 
     seq_len = 16
