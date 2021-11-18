@@ -5,9 +5,9 @@ from modules import CausalLinearAttention
 
 
 class LinearGPT2Attention(GPT2Attention):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, feature_map=None,  *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.attention = CausalLinearAttention()
+        self.attention = CausalLinearAttention(feature_map=feature_map)
 
     def _split_heads(self, tensor, num_heads, attn_head_size):
         new_shape = tensor.size()[:-1] + (num_heads, attn_head_size)
