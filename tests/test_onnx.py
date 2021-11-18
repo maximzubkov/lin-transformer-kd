@@ -7,9 +7,9 @@ import torch
 
 from modules.linear_attention import LinearAttention, CausalLinearAttention
 
-seq_len = 64
-batch_size = 8
-embed_dim = 24
+seq_len = 32
+batch_size = 4
+embed_dim = 12
 num_heads = 2
 
 q = torch.rand(batch_size, seq_len, num_heads, embed_dim)
@@ -61,7 +61,7 @@ def _convert_to_onnx_quadratic(attn: Union[LinearAttention, CausalLinearAttentio
 def _convert_to_onnx_linear(attn: Union[LinearAttention, CausalLinearAttention], model_name: str):
     attn.eval()
 
-    v_orig, _ = attn.forward(q, k, v, output_attention=False)
+    v_orig, *_ = attn.forward(q, k, v, output_attention=False)
 
     # Export the model
     torch.onnx.export(

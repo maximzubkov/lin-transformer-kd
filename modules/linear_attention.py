@@ -1,4 +1,7 @@
+from typing import Tuple, Optional
+
 import torch
+from torch import Tensor
 from torch.nn import Module
 
 from .feature_maps import fm
@@ -30,7 +33,7 @@ class LinearAttention(Module):
 
         return V.contiguous(), A
 
-    def forward(self, queries, keys, values, output_attention: bool = False):
+    def forward(self, queries, keys, values, output_attention: bool = False) -> Tuple[Tensor, Optional[Tensor]]:
         # [batch_size, q_seq_len, n_heads, p_s]
         Q = self.feature_map(queries)
 
@@ -38,11 +41,9 @@ class LinearAttention(Module):
         K = self.feature_map(keys)
 
         if output_attention:
-            V, A = self._quadratic(Q, K, values)
+            return self._quadratic(Q, K, values)
         else:
-            V, A = self._linear(Q, K, values)
-
-        return V, A
+            return self._linear(Q, K, values)
 
 
 class CausalLinearAttention(Module):
@@ -76,7 +77,7 @@ class CausalLinearAttention(Module):
 
         return V.contiguous(), A
 
-    def forward(self, queries, keys, values, output_attention: bool = False):
+    def forward(self, queries, keys, values, output_attention: bool = False) -> Tuple[Tensor, Optional[Tensor]]:
         # [batch_size, q_seq_len, n_heads, p_s]
         Q = self.feature_map(queries)
 
@@ -84,8 +85,6 @@ class CausalLinearAttention(Module):
         K = self.feature_map(keys)
 
         if output_attention:
-            V, A = self._quadratic(Q, K, values)
+            return self._quadratic(Q, K, values)
         else:
-            V, A = self._linear(Q, K, values)
-
-        return V, A
+            return self._linear(Q, K, values)
