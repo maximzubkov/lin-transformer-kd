@@ -5,10 +5,10 @@ from modules import CausalLinearAttention
 
 
 class LinearGPT2Attention(GPT2Attention):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, feature_map=None,  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.attention = CausalLinearAttention(
-            feature_map=kwargs["config"].feature_map,
+            feature_map=feature_map,
             hidden_size=kwargs["config"].n_embd,
             num_heads=kwargs["config"].n_head
         )

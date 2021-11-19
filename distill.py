@@ -98,8 +98,7 @@ def main():
     # Prepare Student model
     student_model = AutoModelForCausalLM.from_pretrained(config.model, **{"output_attentions": True})
     student_model.resize_token_embeddings(len(tokenizer))
-    student_model.config.feature_map = config.feature_map
-    student_model = make_attention_linear(student_model)
+    student_model = make_attention_linear(student_model, feature_map=config.training.kernel)
 
     optimized_parameters = ['wte', 'wpe', 'attn']
     for name, param in student_model.named_parameters():
@@ -154,16 +153,20 @@ def main():
     for epoch in range(config.training.num_train_epochs):
         student_model.train()
         for step, batch in enumerate(train_dataloader):
-            with torch.no_grad():
-                teacher_outputs = teacher_model(**batch)
-
             student_outputs = student_model(**batch)
             loss = student_outputs.loss
-            kd_losses = torch.cat([
-                torch.nn.functional.mse_loss(a, b).reshape(1)
-                for a, b in zip(student_outputs.attentions, teacher_outputs.attentions)
-            ])
-            loss = loss + config.training.kd_loss_coef * kd_losses.mean()
+
+            if config.training.use_distillation:
+                with torch.no_grad():
+                    teacher_outputs = teacher_model(**batch)
+
+                kd_losses = torch.cat([
+                    torch.nn.functional.mse_loss(a, b).reshape(1)
+                    for a, b in zip(student_outputs.attentions, teacher_outputs.attentions)
+                ])
+
+                loss = loss + config.training.kd_loss_coef * kd_losses.mean()
+
             loss = loss / config.training.gradient_accumulation_steps
             accelerator.backward(loss)
 
@@ -178,8 +181,8 @@ def main():
                 wandb.log(
                     {
                         'student_lm_loss': student_outputs.loss.item(),
-                        'teacher_lmloss': teacher_outputs.loss.item(),
-                        'kd_loss': kd_losses.mean().item(),
+                        'teacher_lmloss': teacher_outputs.loss.item() if config.training.use_distillation else 0,
+                        'kd_loss': kd_losses.mean().item() if config.training.use_distillation else 0,
                         'totol_train_loss': loss.item()
                     }
                 )

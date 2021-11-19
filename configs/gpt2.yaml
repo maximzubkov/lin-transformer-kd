@@ -30,3 +30,5 @@ training:
   num_steps_before_eval: 2000
 
   kd_loss_coef: 1
+  use_distillation: False
+  kernel: elu
