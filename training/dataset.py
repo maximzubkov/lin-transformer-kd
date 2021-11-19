@@ -40,7 +40,7 @@ def get_dataset(config, tokenizer: PreTrainedTokenizer, accelerator: Accelerator
             desc="Running tokenizer on dataset",
         )
 
-    block_size = tokenizer.model_max_length
+    block_size = tokenizer.model_max_length if 'max_seq_len' not in config.training else config.training.max_seq_len
 
     # Main data processing function that will concatenate all texts from our dataset and generate chunks of block_size.
     def group_texts(examples):

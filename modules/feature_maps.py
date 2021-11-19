@@ -19,7 +19,7 @@ class ApproxFM(torch.nn.Module):
         super(ApproxFM, self).__init__()
         self.hidden_size = hidden_size
         self.degree = degree
-        w_ = torch.rand(1, 1, num_heads, hidden_size // num_heads, degree + 1)
+        w_ = torch.rand(1, 1, num_heads, 1, degree + 1)
         self.w = torch.nn.Parameter(w_, requires_grad=True)
 
     def forward(self, hidden_state):

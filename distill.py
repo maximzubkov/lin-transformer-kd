@@ -83,7 +83,7 @@ def main():
     # download model & vocab.
     tokenizer = AutoTokenizer.from_pretrained(
         config.dataset.tokenizer,
-        use_fast=not config.dataset.use_fast_tokenizer
+        use_fast=config.dataset.use_fast_tokenizer
     )
 
     # Prepare Teacher model
@@ -100,7 +100,7 @@ def main():
     student_model.resize_token_embeddings(len(tokenizer))
     student_model = make_attention_linear(student_model, feature_map=config.training.kernel)
 
-    optimized_parameters = ['wte', 'wpe', 'attn']
+    optimized_parameters = ['wte', 'wpe', 'ln_1', 'ln_2', 'ln_f']
     for name, param in student_model.named_parameters():
         if all([parameter_name not in name for parameter_name in optimized_parameters]):
             param.requires_grad = False
@@ -159,7 +159,7 @@ def main():
             if config.training.use_distillation:
                 with torch.no_grad():
                     teacher_outputs = teacher_model(**batch)
-
+                print(student_outputs.attentions, teacher_outputs.attentions)
                 kd_losses = torch.cat([
                     torch.nn.functional.mse_loss(a, b).reshape(1)
                     for a, b in zip(student_outputs.attentions, teacher_outputs.attentions)
