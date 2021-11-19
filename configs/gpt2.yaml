@@ -6,6 +6,7 @@ num_workers: 8
 cache_dir: data/cache_dir
 revision: true
 push_to_hub: false
+feature_map: approx
 
 dataset:
   name: wikitext

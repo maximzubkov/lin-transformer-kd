@@ -98,6 +98,7 @@ def main():
     # Prepare Student model
     student_model = AutoModelForCausalLM.from_pretrained(config.model, **{"output_attentions": True})
     student_model.resize_token_embeddings(len(tokenizer))
+    student_model.config.feature_map = config.feature_map
     student_model = make_attention_linear(student_model)
 
     optimized_parameters = ['wte', 'wpe', 'attn']
