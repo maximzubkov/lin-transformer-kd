@@ -1,5 +1,5 @@
-import math
 import logging
+import math
 
 import torch
 import wandb
@@ -10,6 +10,7 @@ from transformers import PreTrainedModel
 logger = logging.getLogger(__name__)
 
 
+@torch.no_grad()
 def evaluate(
     step: int,
     student_model: PreTrainedModel,
@@ -21,10 +22,9 @@ def evaluate(
 ):
     student_model.eval()
     student_losses, teacher_losses = [], []
-    for step, batch in enumerate(eval_dataloader):
-        with torch.no_grad():
-            student_outputs = student_model(**batch)
-            teacher_outputs = teacher_model(**batch)
+    for _, batch in enumerate(eval_dataloader):
+        student_outputs = student_model(**batch)
+        teacher_outputs = teacher_model(**batch)
 
         student_loss = student_outputs.loss
         teacher_loss = teacher_outputs.loss
@@ -53,3 +53,4 @@ def evaluate(
             'val_student_perplexity': student_perplexity,
             'val_teacher_perplexity': teacher_perplexity
         })
+    student_model.train()

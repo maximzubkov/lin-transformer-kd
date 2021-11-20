@@ -5,9 +5,15 @@ from .feature_maps import fm
 
 
 class LinearAttention(Module):
-    def __init__(self, feature_map: str = None, eps: float = 1e-10):
+    def __init__(
+        self,
+        feature_map: str = None,
+        hidden_size: int = None,
+        num_heads: int = None,
+        eps: float = 1e-10
+    ):
         super(LinearAttention, self).__init__()
-        self.feature_map = fm(feature_map)
+        self.feature_map = fm(feature_map, hidden_size=hidden_size, num_heads=num_heads)
         self.eps = eps
 
     def _linear(self, Q, K, V):
@@ -46,9 +52,15 @@ class LinearAttention(Module):
 
 
 class CausalLinearAttention(Module):
-    def __init__(self, feature_map: str = None, eps: float = 1e-10):
+    def __init__(
+        self,
+        feature_map: str = None,
+        hidden_size: int = None,
+        num_heads: int = None,
+        eps: float = 1e-10
+    ):
         super(CausalLinearAttention, self).__init__()
-        self.feature_map = fm(feature_map)
+        self.feature_map = fm(feature_map, hidden_size=hidden_size, num_heads=num_heads)
         self.eps = eps
 
     def _linear(self, Q, K, V):
