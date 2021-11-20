@@ -15,11 +15,11 @@ def fm(feature_map: str = None, num_heads: int = None, hidden_size: int = None):
 
 
 class ApproxFM(torch.nn.Module):
-    def __init__(self, num_heads: int, hidden_size: int, degree: int = 2):
+    def __init__(self, num_heads: int, hidden_size: int, degree: int = 4):
         super(ApproxFM, self).__init__()
         self.hidden_size = hidden_size
         self.degree = degree
-        w_ = torch.rand(1, 1, num_heads, 1, degree + 1)
+        w_ = torch.rand(1, 1, num_heads, hidden_size // num_heads, degree + 1)
         self.w = torch.nn.Parameter(w_, requires_grad=True)
 
     def forward(self, hidden_state):
@@ -28,8 +28,8 @@ class ApproxFM(torch.nn.Module):
         for i in range(self.degree):
             degrees.append(expanded ** (i + 1))
         powers_of_hidden = torch.cat(degrees, dim=-1)
-        ouptut = (powers_of_hidden * self.w).sum(-1)
-        return exp_feature_map(ouptut)
+        output = (powers_of_hidden * self.w).sum(-1)
+        return exp_feature_map(output)
 
 
 def elu_feature_map(x):

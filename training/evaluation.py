@@ -22,7 +22,7 @@ def evaluate(
 ):
     student_model.eval()
     student_losses, teacher_losses = [], []
-    for step, batch in enumerate(eval_dataloader):
+    for _, batch in enumerate(eval_dataloader):
         student_outputs = student_model(**batch)
         teacher_outputs = teacher_model(**batch)
 
