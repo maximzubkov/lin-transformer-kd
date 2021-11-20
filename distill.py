@@ -3,12 +3,13 @@ import logging
 import math
 import os
 
-import wandb
 import datasets
 import torch
 import transformers
+import wandb
 from accelerate import Accelerator, DistributedType
 from omegaconf import OmegaConf
+from torch.nn.functional import mse_loss
 from tqdm.auto import tqdm
 from transformers import (
     MODEL_MAPPING,
@@ -100,7 +101,7 @@ def main():
     student_model.resize_token_embeddings(len(tokenizer))
     student_model = make_attention_linear(student_model, feature_map=config.training.kernel)
 
-    optimized_parameters = ['wte', 'wpe', 'ln_1', 'ln_2', 'ln_f']
+    optimized_parameters = ['wte', 'wpe', 'ln_1', 'ln_2', 'ln_f', 'feature_map']
     for name, param in student_model.named_parameters():
         if all([parameter_name not in name for parameter_name in optimized_parameters]):
             param.requires_grad = False
@@ -150,6 +151,8 @@ def main():
     progress_bar = tqdm(range(max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
 
+    max_seq_len = config.training.max_seq_len
+
     for epoch in range(config.training.num_train_epochs):
         student_model.train()
         for step, batch in enumerate(train_dataloader):
@@ -159,13 +162,16 @@ def main():
             if config.training.use_distillation:
                 with torch.no_grad():
                     teacher_outputs = teacher_model(**batch)
-                print(student_outputs.attentions, teacher_outputs.attentions)
-                kd_losses = torch.cat([
-                    torch.nn.functional.mse_loss(a, b).reshape(1)
+                kd_loss = torch.cat([
+                    mse_loss(
+                        a.reshape(-1, max_seq_len ** 2),
+                        b.reshape(-1, max_seq_len ** 2),
+                        reduction='mean'
+                    ).reshape(-1, 1)
                     for a, b in zip(student_outputs.attentions, teacher_outputs.attentions)
-                ])
+                ]).sum()
 
-                loss = loss + config.training.kd_loss_coef * kd_losses.mean()
+                loss = loss + config.training.kd_loss_coef * kd_loss
 
             loss = loss / config.training.gradient_accumulation_steps
             accelerator.backward(loss)
@@ -181,9 +187,9 @@ def main():
                 wandb.log(
                     {
                         'student_lm_loss': student_outputs.loss.item(),
-                        'teacher_lmloss': teacher_outputs.loss.item() if config.training.use_distillation else 0,
-                        'kd_loss': kd_losses.mean().item() if config.training.use_distillation else 0,
-                        'totol_train_loss': loss.item()
+                        'teacher_lm_loss': teacher_outputs.loss.item() if config.training.use_distillation else 0,
+                        'kd_loss': kd_loss.item() if config.training.use_distillation else 0,
+                        'total_train_loss': loss.item()
                     }
                 )
 
