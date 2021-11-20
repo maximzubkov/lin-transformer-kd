@@ -31,6 +31,6 @@ training:
 
   kd_loss_coef: 1000
   use_distillation: True
-  kernel: elu
+  kernel: approx
 
   max_seq_len: 256
