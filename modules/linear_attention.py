@@ -46,20 +46,25 @@ class LinearAttention(Module):
 
 
 class LinearSoftmaxAttention(Module):
-    def __init__(self, eps: float = 1e-10):
+    def __init__(self, attn_type: str = "inter-word", eps: float = 1e-10):
         super(LinearAttention, self).__init__()
         self.eps = eps
+        self.attn_type = attn_type
 
-    def _inter_word_attn(self, queries, keys, values, output_attention: bool = False):
+    def _inter_word_attn(self, queries, keys, values, attention_mask):
         # [batch_size, n_heads, q_seq_len, k_seq_len]
         QK = torch.einsum("nqhd,nkhd->nhqk", queries, keys)
         A = torch.softmax(QK, dim=-1)
+
+        if attention_mask is not None:
+            # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
+            A = A + attention_mask
 
         V = torch.einsum("nhqs,nshd->nqhd", A, values)
 
         return V.contiguous(), A
 
-    def _inter_hidden_attn(self, queries, keys, values, output_attention: bool = False):
+    def _inter_hidden_attn(self, queries, keys, values):
         # [batch_size, n_heads, p_s, p_s]
         KV = torch.einsum("nshd,nshm->nhmd", keys, values)
         A = torch.softmax(KV, dim=-1)
@@ -68,10 +73,10 @@ class LinearSoftmaxAttention(Module):
 
         return V.contiguous(), None
 
-    def forward(self, queries, keys, values, attn_type: str = "inter-word"):
-        if attn_type == "inter-word":
-            V, A = self._inter_word_attn(queries, keys, values)
-        elif attn_type == "inter-hidden":
+    def forward(self, queries, keys, values, attention_mask=None):
+        if self.attn_type == "inter-word":
+            V, A = self._inter_word_attn(queries, keys, values, attention_mask)
+        elif self.attn_type == "inter-hidden":
             V, A = self._inter_hidden_attn(queries, keys, values)
         else:
             raise ValueError("Unknown attn type")

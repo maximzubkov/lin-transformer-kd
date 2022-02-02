@@ -1,6 +1,7 @@
-from .linear_attention import LinearAttention, CausalLinearAttention
+from .linear_attention import LinearAttention, CausalLinearAttention, LinearSoftmaxAttention
 
 __all__ = [
     "LinearAttention",
-    "CausalLinearAttention"
+    "CausalLinearAttention",
+    "LinearSoftmaxAttention"
 ]
