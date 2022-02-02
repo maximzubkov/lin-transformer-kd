@@ -45,6 +45,40 @@ class LinearAttention(Module):
         return V, A
 
 
+class LinearSoftmaxAttention(Module):
+    def __init__(self, eps: float = 1e-10):
+        super(LinearAttention, self).__init__()
+        self.eps = eps
+
+    def _inter_word_attn(self, queries, keys, values, output_attention: bool = False):
+        # [batch_size, n_heads, q_seq_len, k_seq_len]
+        QK = torch.einsum("nqhd,nkhd->nhqk", queries, keys)
+        A = torch.softmax(QK, dim=-1)
+
+        V = torch.einsum("nhqs,nshd->nqhd", A, values)
+
+        return V.contiguous(), A
+
+    def _inter_hidden_attn(self, queries, keys, values, output_attention: bool = False):
+        # [batch_size, n_heads, p_s, p_s]
+        KV = torch.einsum("nshd,nshm->nhmd", keys, values)
+        A = torch.softmax(KV, dim=-1)
+
+        V = torch.einsum("nlhd,nhmd->nlhm", queries, A)
+
+        return V.contiguous(), None
+
+    def forward(self, queries, keys, values, attn_type: str = "inter-word"):
+        if attn_type == "inter-word":
+            V, A = self._inter_word_attn(queries, keys, values)
+        elif attn_type == "inter-hidden":
+            V, A = self._inter_hidden_attn(queries, keys, values)
+        else:
+            raise ValueError("Unknown attn type")
+
+        return V, A
+
+
 class CausalLinearAttention(Module):
     def __init__(self, feature_map: str = None, eps: float = 1e-10):
         super(CausalLinearAttention, self).__init__()
