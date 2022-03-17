@@ -9,6 +9,12 @@ class LinearBERTSelfAttention(BertSelfAttention):
     def __init__(self, attn_type="inter-word",  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.attn_type = attn_type
+        if self.attn_type == "mixture":
+            ones = torch.zeros(1, self.num_attention_heads, 1)
+            self.weight = nn.Parameter(
+                ones,
+                requires_grad=False
+            )
 
     def forward(
         self,
@@ -100,6 +106,34 @@ class LinearBERTSelfAttention(BertSelfAttention):
                 attention_probs = attention_probs * head_mask
 
             context_layer = torch.matmul(query_layer, attention_probs)
+        elif self.attn_type == "mixture":
+            # [batch_size, n_heads, q_seq_len, k_seq_len]
+
+            attention_scores_iw = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+            attention_scores_ih = torch.matmul(key_layer.transpose(-1, -2), value_layer)
+
+            attention_scores_iw = attention_scores_iw / math.sqrt(self.attention_head_size)
+            attention_scores_ih = attention_scores_ih / math.sqrt(self.attention_head_size)
+
+            if attention_mask is not None:
+                attention_scores_iw = attention_scores_iw + attention_mask
+                attention_scores_ih = attention_scores_ih + attention_mask
+
+            attention_probs_iw = nn.functional.softmax(attention_scores_iw, dim=-1)
+            attention_probs_ih = nn.functional.softmax(attention_scores_ih, dim=-1)
+
+            attention_probs_iw = self.dropout(attention_probs_iw)
+            attention_probs_ih = self.dropout(attention_probs_ih)
+
+            if head_mask is not None:
+                attention_probs_iw = attention_probs_iw * head_mask
+                attention_probs_ih = attention_probs_ih * head_mask
+
+            context_layer_iw = torch.matmul(query_layer, attention_probs_iw)
+            context_layer_ih = torch.matmul(query_layer, attention_probs_ih)
+
+            context_layer = (1 - torch.sigmoid(self.weight)) * context_layer_iw + \
+                            torch.sigmoid(self.weight) * context_layer_ih
         else:
             raise ValueError("Unknown attn type")
 

@@ -14,13 +14,12 @@ def make_attention_linear(model, feature_map=None):
     return model
 
 
-def update_attn(model, is_inter_word: bool = True):
+def update_attn(model, attn_type: str = "inter-word"):
     if isinstance(model, BertForSequenceClassification):
-        attn_type = "inter-word" if is_inter_word else "inter-hidden"
         print(f"Update, {attn_type}")
         for i, _ in enumerate(model.bert.encoder.layer):
             layer = model.bert.encoder.layer[i]
             layer.attention.self = LinearBERTSelfAttention(attn_type, model.config)
             if hasattr(layer, "crossattention"):
-                layer.attention.self = LinearBERTSelfAttention(is_inter_word, model.config, position_embedding_type="absolute")
+                layer.attention.self = LinearBERTSelfAttention(attn_type, model.config, position_embedding_type="absolute")
     return model

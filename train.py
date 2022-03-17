@@ -179,8 +179,8 @@ class ModelArguments:
             "with private models)."
         },
     )
-    is_inter_word: bool = field(
-        default=True,
+    attn_type: str = field(
+        default="inter-word",
     )
 
 
@@ -333,7 +333,7 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    model = update_attn(model, model_args.is_inter_word)
+    model = update_attn(model, model_args.attn_type)
     # Preprocessing the raw_datasets
     if data_args.task_name is not None:
         sentence1_key, sentence2_key = task_to_keys[data_args.task_name]
