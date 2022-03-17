@@ -128,7 +128,7 @@ class LinearBERTSelfAttention(BertSelfAttention):
                 attention_probs_iw = attention_probs_iw * head_mask
                 attention_probs_ih = attention_probs_ih * head_mask
 
-            context_layer_iw = torch.matmul(query_layer, attention_probs_iw)
+            context_layer_iw = torch.matmul(attention_probs_iw, value_layer)
             context_layer_ih = torch.matmul(query_layer, attention_probs_ih)
 
             context_layer = (1 - torch.sigmoid(self.weight)) * context_layer_iw + \
