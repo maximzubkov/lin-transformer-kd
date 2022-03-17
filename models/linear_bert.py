@@ -117,7 +117,6 @@ class LinearBERTSelfAttention(BertSelfAttention):
 
             if attention_mask is not None:
                 attention_scores_iw = attention_scores_iw + attention_mask
-                attention_scores_ih = attention_scores_ih + attention_mask
 
             attention_probs_iw = nn.functional.softmax(attention_scores_iw, dim=-1)
             attention_probs_ih = nn.functional.softmax(attention_scores_ih, dim=-1)
